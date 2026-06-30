@@ -1,23 +1,21 @@
 {
-  "name": "opencode-session-miner",
-  "version": "1.0.0",
-  "description": "Mine OpenCode sessions and export to Obsidian with parallel-aware time tracking",
-  "main": "src/session-miner.ts",
+  "name": "agent-session-miner",
+  "version": "2.0.0",
+  "description": "Mine Claude Code and OpenCode sessions into Obsidian daily/weekly notes with parallel-aware time tracking",
+  "main": "src/mine.ts",
   "scripts": {
-    "mine": "bun run src/session-miner.ts",
-    "calculate": "bun run src/calculate-time.ts",
-    "organize": "bun run src/para-organizer.ts",
+    "mine": "bun run src/mine.ts",
+    "calculate": "bun run src/mine.ts --calculate",
+    "analyze": "bun run src/mine.ts --analyze",
     "setup:cron": "bash scripts/setup-cron.sh",
     "test": "bun test"
-  },
-  "dependencies": {
-    "bun:sqlite": "latest"
   },
   "devDependencies": {
     "@types/bun": "latest",
     "@types/node": "^20.0.0"
   },
   "keywords": [
+    "claude-code",
     "opencode",
     "obsidian",
     "session-tracking",
@@ -25,10 +23,9 @@
     "para-method",
     "ai-agents"
   ],
-  "author": "Your Name <your.email@example.com>",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/yourusername/opencode-session-miner.git"
+    "url": "https://github.com/krajh/agent-session-miner.git"
   }
 }

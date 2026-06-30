@@ -1,354 +1,98 @@
-# OpenCode Session Miner
+# Agent Session Miner
 
-A toolkit for mining OpenCode sessions and generating beautiful Obsidian vault reports. Accounts for parallel agent execution when calculating time spent.
+Turn your AI coding sessions into an Obsidian journal. Mines **Claude Code** and
+**OpenCode** sessions, calculates how much time you *actually* spent (accounting
+for parallel agents and idle gaps), and writes daily notes, weekly summaries, and
+per-project pages into your vault.
 
-## ✨ Features
+> Repo history note: this started as an OpenCode-only tool. It was rewritten to be
+> multi-source with Claude Code as the primary source — see `package.json` name
+> `agent-session-miner`.
 
-- **Session Mining**: Extract sessions from OpenCode SQLite database
-- **Session Titles**: Displays session names (e.g., "Remove mempalace everywhere")
-- **Interval Merging**: Correctly calculate time when multiple agents run in parallel
-- **Obsidian Export**: Generate daily notes and weekly summaries (simplified - no individual session files)
-- **📊 Weekly Performance Reflection**: Auto-generate weekly performance reflection notes with customizable templates
-- **Cron Ready**: Automated weekly reports every Friday at 3PM
-- **PARA Method**: Organize notes into Projects, Areas, Resources, Archives
-
-## 📊 What You Get
-
-Before (simple sum): 2327h  
-After (merged intervals): **717h** (69.2% reduction from parallel work accounting!)
+## What you get
 
 ```
-Daily Notes/
-  2026-05-07.md
-  - **Total Time**: 4h 7m
-  - **Total Sessions**: 18
-  - Session titles with durations and project grouping...
-
-Weekly Summaries/
-  2026-05-04_to_2026-05-10.md
-  - **Total Time**: 80h 37m
-  - **Sessions**: 138
+your-vault/
+  Daily Notes/2026-06-30.md        # metrics + what you worked on (your own notes preserved)
+  Weekly Summaries/                # weekly rollups + performance-reflection notes
+  Projects/                        # per-repo pages with time + source breakdown
+  Areas/  Resources/  Archives/    # PARA scaffolding you curate by hand
 ```
 
-## 🚀 Quick Start
+Each session is tagged by source (`claude` / `opencode`) and grouped by project.
 
-### 1. Prerequisites
+## How time is calculated
 
-- [Bun](https://bun.sh/) runtime
-- OpenCode with SQLite database
-- Obsidian vault (optional, for notes export)
+The headline metric is **honest elapsed time**, not a naive sum:
 
-### 2. Installation
+- **Parallel work** — three agents running for an hour in parallel is 1 hour of
+  wall-clock, not 3. Overlapping intervals are merged.
+- **Idle gaps** — a session open for 4 days isn't 96 hours of work. Every source
+  reduces to per-event timestamps, which are segmented into activity bursts (a gap
+  over 30 minutes ends a burst) and attributed to the local day they happened.
+
+Both sources flow through the same model (`src/activity.ts` → `src/intervals.ts`),
+so adding a new harness is one file in `src/sources/`.
+
+## Quick start
 
 ```bash
-git clone https://github.com/krajh/opencode-session-miner.git
-cd opencode-session-miner
 bun install
-```
-
-### 3. Configuration
-
-Create a `.env` file (or set environment variables):
-
-```bash
-# OpenCode SQLite database path
-OPENCODE_DB_PATH="$HOME/.local/share/opencode/opencode.db"
-
-# Obsidian vault path (where notes will be exported)
-OBSIDIAN_VAULT_PATH="/path/to/your/obsidian/vault"
-
-# Optional: Date range (defaults to last 30 days)
-# START_DATE="2026-04-07"
-# END_DATE="2026-05-07"
-```
-
-### 4. Run It
-
-```bash
-# Generate reports for last 30 days
+cp .env.example .env      # then edit paths
 bun run mine
-
-# Or specify custom date range
-bun run mine --start=2026-04-01 --end=2026-05-07
 ```
 
-## 📁 Project Structure
+### Configuration (`.env`)
 
-```
-opencode-session-miner/
-├── src/
-│   ├── session-miner.ts      # Main mining logic (with session titles!)
-│   ├── interval-merge.ts     # Parallel session time calculator
-│   ├── obsidian-writer.ts   # Export to Obsidian format (Daily/Weekly notes)
-│   ├── calculate-time.ts     # Time calculation utilities
-│   ├── overlap-analyzer.ts  # Measure parallel session overlap rates
-│   ├── debug-intervals.ts   # Interval debugging utilities
-│   ├── para-organizer.ts    # PARA method organization
-│   └── types.ts             # TypeScript type definitions
-├── scripts/
-│   ├── setup-cron.sh        # Cron job setup script
-│   └── cron-wrapper.sh      # For automated weekly runs
-├── logs/                     # Cron execution logs
-├── README.md
-├── package.json
-└── tsconfig.json
-```
+| Variable | Default | Purpose |
+|---|---|---|
+| `OBSIDIAN_VAULT_PATH` | _(required)_ | where notes are written |
+| `CLAUDE_PROJECTS_DIR` | `~/.claude/projects` | Claude Code transcripts |
+| `OPENCODE_DB_PATH` | `~/.local/share/opencode/opencode.db` | OpenCode database |
+| `SOURCES` | `claude,opencode` | which sources to mine |
+| `DAYS` | `30` | look-back window |
 
-## 🔧 Advanced Usage
-
-### Custom Date Ranges
+## Commands
 
 ```bash
-# Last 7 days
-bun run mine --days=7
-
-# Specific range
-bun run mine --start=2026-04-01 --end=2026-04-30
+bun run mine                       # write notes for the last 30 days
+bun run mine --days=7              # last 7 days
+bun run mine --start=2026-06-01 --end=2026-06-30
+bun run mine --sources=claude     # one source only
+bun run calculate                 # print per-day / total time, write nothing
+bun run analyze                   # same table, framed as parallel-work savings
+bun test                          # run the test suite
 ```
 
-### Just Calculate Time (No Obsidian Export)
+## Automation
 
-```bash
-bun run calculate
-```
+On **macOS**, schedule a weekly refresh as a Claude Code routine (it runs locally,
+where your files live):
 
-Outputs merged time to console without writing files.
+> Ask Claude: *"set up a weekly routine to run the session miner"* — or manage it
+> from the **Scheduled** section of the Claude desktop app.
 
-### Analyze Session Overlaps
+The `scripts/setup-cron.sh` helper is legacy Linux/WSL cron and is not used on macOS.
 
-```bash
-bun run analyze
-```
-
-Shows parallel session statistics and overlap rates.
-
-## ⏰ Automated Weekly Reports (Cron)
-
-Set up automatic weekly reports every Friday at 3PM:
-
-```bash
-bun run setup:cron
-```
-
-This will:
-1. Create a wrapper script at `scripts/cron-wrapper.sh`
-2. Add a cron job: `0 15 * * 5`
-3. Logs output to `logs/interval-merge.log`
-
-### Manual Cron Setup
-
-```bash
-# Run setup script
-bash scripts/setup-cron.sh
-
-# Verify
-crontab -l
-```
-
-## 📖 How It Works
-
-### The Problem: Parallel Session Overcounting
-
-If you have 3 agents running for 1 hour each in parallel, simple time summation counts 3 hours. But you only spent 1 hour of wall-clock time!
-
-### The Solution: Interval Merging
+## Architecture
 
 ```
-Simple Sum:     [Agent A: 1h] + [Agent B: 1h] + [Agent C: 1h] = 3h ❌
-Interval Merge: [A────1h────][B────1h────][C────1h────] → Merged: 1h ✅
+src/
+  types.ts          Session (one model), MinerConfig
+  intervals.ts      merge / total / format — the one interval algorithm
+  activity.ts       timestamps -> per-day active windows (the shared segmenter)
+  dates.ts          local-timezone day & week helpers
+  projects.ts       path -> repo name (collapses worktrees)
+  group.ts          groupBy helper
+  sources/
+    claude-code.ts  ~/.claude/projects/**/*.jsonl  -> Session[]
+    opencode.ts     OpenCode SQLite message timestamps -> Session[]
+    index.ts        source registry (claude first)
+  render/
+    daily.ts  weekly.ts  para.ts     Session[] -> markdown
+  mine.ts           the one entry point
 ```
 
-The algorithm:
-1. Fetch all sessions with start/end times
-2. Sort by start time
-3. Merge overlapping intervals
-4. Sum merged interval durations
+## License
 
-### Session Titles
-
-The miner now fetches and displays session titles from the OpenCode database:
-
-```sql
-SELECT id, title, project_id, time_created, time_updated 
-FROM session 
-WHERE time_created >= ? AND time_created < ?
-ORDER BY time_created
-```
-
-Daily notes show:
-- **Session Title** (duration, [[session-id]])
-
-## 📊 Weekly Performance Reflection
-
-Automatically generate weekly performance reflection notes to track your growth against any performance framework (10-dimension, OKRs, custom criteria).
-
-### What You Get
-
-Each week, a reflection note is created at `Weekly Summaries/[start]_to_[end]_reflection.md` with:
-
-- **10 Performance Dimensions** (customizable via template):
-  1. Outcomes & Impact
-  2. Reliability & Consistency
-  3. Communication Effectiveness
-  4. Collaboration
-  5. Culture in Action
-  6. Inspiring & Mobilising Others
-  7. Growth Agility
-  8. Innovation & Adaptive Problem-Solving
-  9. Risk Management & Quality Assurance
-  10. Decision Making
-
-- **Weekly Summary**: Auto-filled with total time and session count
-- **Evidence Prompts**: Each dimension includes prompts to log weekly evidence
-- **Self-Rating**: Space to rate yourself Strong/Exceptional per dimension
-- **Links**: Auto-linked to weekly summary and daily notes
-
-### Template Configuration
-
-Set your template path in `.env`:
-
-```bash
-# Custom template path (optional)
-PERFORMANCE_TEMPLATE_PATH=/path/to/your/template.md
-
-# Or use default (looks in your vault's Templates/ folder)
-# Default: {OBSIDIAN_VAULT_PATH}/Templates/Weekly Performance Reflection.md
-```
-
-### Custom Templates
-
-The repo includes a generic template at `examples/Weekly Performance Reflection - Generic.md`. To use it:
-
-```bash
-cp "examples/Weekly Performance Reflection - Generic.md" "$OBSIDIAN_VAULT_PATH/Templates/Weekly Performance Reflection.md"
-```
-
-Or create your own template using the variable placeholders:
-- `{{date:YYYY-MM-DD}}` - Week start date
-- `{{date+6d:YYYY-MM-DD}}` - Week end date
-- `{{time}}` - Placeholder for session data
-
-### Example Use Case
-
-Track your performance growth over time:
-- **Weekly**: Fill in evidence for each dimension
-- **Quarterly**: Review weeks of data to see patterns
-- **Result**: Concrete evidence of impact, gaps, and growth areas
-
-> **Pro Tip**: Align your template dimensions to your company's performance framework for maximum value!
-
----
-
-## 🎨 Customization
-
-### Change Note Templates
-
-Edit the templates in `src/obsidian-writer.ts`:
-
-```typescript
-// Daily notes show:
-## What I Worked On
-### project-id
-- **Session Title** (duration, [[session-id]])
-```
-
-### Add Custom Sections
-
-Modify `src/para-organizer.ts` to add custom Obsidian sections like:
-- Dataview queries
-- MOCs (Maps of Content)
-- Tags and backlinks
-
-## 🐛 Troubleshooting
-
-### "Database not found"
-
-```bash
-# Find your OpenCode database
-find ~ -name "opencode.db" 2>/dev/null
-
-# Set correct path in .env
-echo "OPENCODE_DB_PATH=/correct/path/opencode.db" >> .env
-```
-
-### "Obsidian vault not found"
-
-```bash
-# Create the directory or update .env
-mkdir -p /path/to/your/vault
-echo "OBSIDIAN_VAULT_PATH=/path/to/your/vault" >> .env
-```
-
-### Cron job not running
-
-```bash
-# Check if cron service is running (WSL/Linux)
-sudo service cron status
-
-# Check logs
-cat logs/interval-merge.log
-
-# Verify cron setup
-crontab -l
-```
-
-## 📚 Documentation
-
-- Built-in help: `bun run mine --help`
-- Source code: Check `src/` for implementation details
-- Examples: See `Daily Notes/` and `Weekly Summaries/` in your vault
-
-## 🤝 Sharing With Friends
-
-This project is designed to be shared! To share with friends:
-
-1. **Repo is already on GitHub**:
-   ```bash
-   # Clone it
-   git clone https://github.com/krajh/opencode-session-miner.git
-   cd opencode-session-miner
-   bun install
-   ```
-
-2. **Send them the repo link**:
-   ```
-   "Hey! Check out this tool I built for mining OpenCode sessions:
-   https://github.com/krajh/opencode-session-miner
-   
-   It correctly calculates time when you have parallel agents running!"
-   ```
-
-3. **They follow the Quick Start** in this README ✅
-
-## 🤖 For AI Agents (Auto-Install)
-
-Want your AI agent (OpenCode, etc.) to install this automatically?
-
-**Just say to your AI**:
-> *"Hey, install the OpenCode Session Miner from https://github.com/krajh/opencode-session-miner - follow the AI-INSTALL.md instructions"*
-
-Your AI will:
-1. Clone the repo
-2. Install dependencies  
-3. Configure .env
-4. Test run
-5. Setup cron job
-6. Verify everything works ✅
-
-**Details**: See [AI-INSTALL.md](AI-INSTALL.md) for copy-pasteable instructions designed for AI agents.
-
-## 📝 License
-
-MIT License - feel free to modify and share!
-
-## 💡 Inspiration
-
-Built for [OpenCode](https://github.com/opencodeai/opencode) users who:
-- Run multiple AI agents in parallel
-- Want accurate time tracking
-- Love Obsidian for knowledge management
-- Appreciate the PARA method for organization
-
----
-
-**Made with ❤️ for the OpenCode community**
+MIT

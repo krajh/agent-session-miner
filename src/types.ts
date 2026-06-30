@@ -1,52 +1,34 @@
 /**
- * Type definitions for OpenCode Session Miner
+ * Shared domain model.
+ *
+ * Every source (OpenCode, Claude Code, future harnesses) loads into the SAME
+ * `Session` shape, so the analysis and rendering layers never learn where a
+ * session came from. All timestamps are epoch milliseconds.
  */
 
+export type SourceName = "claude" | "opencode";
+
 export interface TimeInterval {
-  start: number; // seconds
-  end: number;   // seconds
+  start: number; // epoch ms
+  end: number; // epoch ms
 }
 
+/** One unit of work, normalized across every source. */
 export interface Session {
   id: string;
-  project_id: string;
-  project_name?: string;
+  source: SourceName;
+  project: string; // display name, e.g. "CoinBurn"
   title: string;
-  time_created: number;
-  time_updated: number;
-}
-
-export interface DayData {
-  mergedTime: number;    // seconds
-  sessionCount: number;
-  sessions: Session[];
-}
-
-export interface WeekData {
-  start: string;
-  end: string;
-  mergedTime: number;
-  sessionCount: number;
-  days: string[];
-}
-
-export interface ProjectData {
-  id: string;
-  name: string;
-  sessionCount: number;
-  totalTime: number; // seconds
-  sessions: Session[];
+  start: number; // epoch ms
+  end: number; // epoch ms
 }
 
 export interface MinerConfig {
-  dbPath: string;
   vaultPath: string;
-  startDate?: string;
-  endDate?: string;
-  days?: number;
-}
-
-export interface ObsidianNote {
-  path: string;
-  content: string;
+  opencodeDbPath: string;
+  claudeProjectsDir: string;
+  sources: SourceName[];
+  rangeStart: number; // epoch ms, inclusive
+  rangeEnd: number; // epoch ms, inclusive
+  performanceTemplatePath: string;
 }
